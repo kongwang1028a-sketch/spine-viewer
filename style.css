@@ -75,6 +75,9 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .layers li:hover { background: var(--panel2); }
 .layers li.sel { background: rgba(78, 161, 255, .16); }
 .layers li.main-sel { border-color: var(--accent); }
+.layers li.dragging { opacity: .4; }
+.layers li.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.layers li.drop-after { box-shadow: 0 2px 0 var(--accent); }
 .layers .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layers .tag { font-size: 11px; border-radius: 3px; padding: 0 4px; }
 .tag.static { background: var(--static); color: #222; }

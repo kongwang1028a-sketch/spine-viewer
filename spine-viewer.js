@@ -1517,7 +1517,7 @@ function renderLayers() {
       if (l.followId) tags.push(`<span class="tag follow" title="跟隨 ${esc(getLayer(l.followId)?.name || '')}">跟</span>`);
       if (l.warn) tags.push(`<span class="tag err" title="${esc(l.warn)}">!</span>`);
       const cls = [S.multi.has(l.id) ? 'sel' : '', l.id === S.selectedId ? 'main-sel' : ''].join(' ');
-      return `<li data-id="${l.id}" class="${cls}">
+      return `<li data-id="${l.id}" class="${cls}" draggable="true">
         <input type="checkbox" data-act="vis" ${l.visible ? 'checked' : ''} title="顯示">
         <span class="nm" title="${esc(l.name)}">${esc(l.name)}</span>${tags.join('')}
         <button class="ic" data-act="up" title="往下畫（上移）">▲</button>
@@ -1608,6 +1608,59 @@ $('#layerList').addEventListener('click', e => {
   }
   renderLayers();
   renderProps();
+});
+
+// 拖曳排序：拖的是多選中的一項 → 整批一起搬（維持原本的相對順序）
+let layerDrag = null; // {ids: 要搬的圖層 id}；非 null 時視窗的檔案拖放處理要略過
+function clearDropMarks() {
+  for (const x of $('#layerList').querySelectorAll('.drop-before, .drop-after')) x.classList.remove('drop-before', 'drop-after');
+}
+$('#layerList').addEventListener('dragstart', e => {
+  const li = e.target.closest?.('li');
+  const l = li && getLayer(+li.dataset.id);
+  if (!l) return;
+  const ids = S.multi.has(l.id) && S.multi.size > 1 ? S.layers.filter(x => S.multi.has(x.id)).map(x => x.id) : [l.id];
+  layerDrag = {ids};
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', l.name);
+  for (const x of $('#layerList').children) if (ids.includes(+x.dataset.id)) x.classList.add('dragging');
+});
+$('#layerList').addEventListener('dragover', e => {
+  if (!layerDrag) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  clearDropMarks();
+  const li = e.target.closest('li');
+  if (!li) return;
+  const r = li.getBoundingClientRect();
+  li.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+});
+$('#layerList').addEventListener('drop', e => {
+  if (!layerDrag) return;
+  e.preventDefault();
+  e.stopPropagation(); // 不要再跑到視窗的檔案匯入
+  const li = e.target.closest('li');
+  const target = li && getLayer(+li.dataset.id);
+  const ids = new Set(layerDrag.ids);
+  if (target) {
+    const r = li.getBoundingClientRect();
+    const after = e.clientY >= r.top + r.height / 2;
+    const moving = S.layers.filter(x => ids.has(x.id));
+    // 插入的縫在原清單的第 gap 格之前；換算成「拿掉要搬的那批之後」的位置
+    const gap = S.layers.indexOf(target) + (after ? 1 : 0);
+    const at = S.layers.slice(0, gap).filter(x => !ids.has(x.id)).length;
+    const rest = S.layers.filter(x => !ids.has(x.id));
+    rest.splice(at, 0, ...moving);
+    S.layers = rest;
+    saveOrder();
+  }
+  layerDrag = null;
+  renderLayers();
+});
+$('#layerList').addEventListener('dragend', () => {
+  layerDrag = null;
+  clearDropMarks();
+  for (const x of $('#layerList').querySelectorAll('.dragging')) x.classList.remove('dragging');
 });
 
 // ---------- 自動對位（拿 Layout 圖比對，找元件該在的位置） ----------
@@ -2832,11 +2885,13 @@ const stage = $('#stage');
 let dragDepth = 0;
 window.addEventListener('dragenter', e => {
   e.preventDefault();
+  if (layerDrag) return; // 圖層清單自己的拖曳排序，不是拖檔案進來
   dragDepth++;
   $('#dropMask').classList.add('show');
 });
 window.addEventListener('dragleave', e => {
   e.preventDefault();
+  if (layerDrag) return;
   if (--dragDepth <= 0) {
     dragDepth = 0;
     $('#dropMask').classList.remove('show');
@@ -2845,6 +2900,7 @@ window.addEventListener('dragleave', e => {
 window.addEventListener('dragover', e => e.preventDefault());
 window.addEventListener('drop', async e => {
   e.preventDefault();
+  if (layerDrag) return;
   dragDepth = 0;
   $('#dropMask').classList.remove('show');
   try {
