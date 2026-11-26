@@ -33,6 +33,49 @@ python -m http.server 8000
 # 開 http://localhost:8000/
 ```
 
+## 更新線上版
+
+線上版是 GitHub Pages，從 `main` 分支根目錄發布；推上 `main` 後約 1 分鐘自動更新，沒有建置步驟。
+
+如果這台電腦平常用的是**另一個** GitHub 帳號（git 預設憑證或 `GITHUB_TOKEN` 環境變數指向它），直接 `git push` 會被拒絕（403）。照下面的順序推（PowerShell，同一個視窗）：
+
+1. commit 前確認作者是這個 repo 專用的設定，不是電腦的全域作者：
+
+   ```powershell
+   git config user.email
+   ```
+
+   沒有輸出或不是預期的信箱時，只在這個 repo 裡設定（不加 `--global`）：
+
+   ```powershell
+   git config user.name "<顯示名稱>"
+   git config user.email "<這個 repo 用的信箱>"
+   ```
+
+2. 暫時清掉 `GITHUB_TOKEN`（只影響這個視窗；沒設過可以跳過）：
+
+   ```powershell
+   $env:GITHUB_TOKEN = $null
+   ```
+
+3. 把 `gh` 切到擁有這個 repo 的帳號（第一次要先 `gh auth login` 登入該帳號）：
+
+   ```powershell
+   gh auth switch --user <repo 擁有者帳號>
+   ```
+
+4. 用 `gh` 的憑證推送，不經過電腦預設的憑證管理員：
+
+   ```powershell
+   git -c credential.helper= -c "credential.helper=!gh auth git-credential" push
+   ```
+
+5. 推完把 `gh` 切回平常用的帳號：
+
+   ```powershell
+   gh auth switch --user <平常用的帳號>
+   ```
+
 ## 授權
 
 - `lib/spine-webgl-3.8.js` 來自 [EsotericSoftware/spine-runtimes](https://github.com/EsotericSoftware/spine-runtimes)（`3.8` 分支 `spine-ts/build/`），依 Spine Runtimes License（`lib/LICENSE-spine-runtimes.txt`）散布。依該授權，把 Spine Runtimes 用在自己的產品或專案中，需要持有有效的 Spine Editor 授權。
