@@ -224,10 +224,8 @@ function parseFnt(text) {
 
 let bmTmp = null;
 let bmTint = null;
-/** 在 (0,0) 置中畫點陣字；color 非白色時跟 Cocos 一樣用乘色染色 */
-function drawBmText(ctx, font, text, size, color, spacingX) {
-  const k = (size || font.size) / font.size;
-  const lines = String(text).split('\n');
+/** 點陣字逐行排字（字型原始單位）：回傳每行的字形位置與寬度、最寬那行的寬度 */
+function layoutBmText(font, text, spacingX) {
   const glyphsOf = s => {
     const out = [];
     let x = 0;
@@ -242,9 +240,18 @@ function drawBmText(ctx, font, text, size, color, spacingX) {
     }
     return {out, w: x};
   };
-  const laid = lines.map(glyphsOf);
-  const totalH = font.lineHeight * lines.length;
-  const W = Math.max(1, ...laid.map(l => l.w));
+  const laid = String(text).split('\n').map(glyphsOf);
+  return {laid, W: Math.max(1, ...laid.map(l => l.w))};
+}
+
+/**
+ * 畫點陣字：文字區塊左上角在 (x, y)，整塊放大 scale 倍。
+ * lineH 是字型原始單位的行高；hf 是各行在區塊內的橫向對齊（0 左 / 0.5 中 / 1 右）。
+ * color 非白色時跟 Cocos 一樣用乘色染色。
+ */
+function drawBmText(ctx, font, lay, lineH, hf, color, x, y, scale) {
+  const {laid, W} = lay;
+  const totalH = lineH * (laid.length - 1) + font.lineHeight;
   const pad = 4;
   if (!bmTmp) bmTmp = document.createElement('canvas');
   bmTmp.width = Math.ceil(W + pad * 2);
@@ -252,8 +259,8 @@ function drawBmText(ctx, font, text, size, color, spacingX) {
   const t = bmTmp.getContext('2d');
   t.clearRect(0, 0, bmTmp.width, bmTmp.height);
   laid.forEach((l, i) => {
-    const ox = pad + (W - l.w) / 2;
-    const oy = pad + i * font.lineHeight;
+    const ox = pad + (W - l.w) * hf;
+    const oy = pad + i * lineH;
     for (const {g, x} of l.out) {
       const img = font.images[g.page];
       if (img && g.w && g.h) t.drawImage(img, g.x, g.y, g.w, g.h, ox + x + g.xo, oy + g.yo, g.w, g.h);
@@ -275,7 +282,87 @@ function drawBmText(ctx, font, text, size, color, spacingX) {
     c.globalCompositeOperation = 'source-over';
     src = bmTint;
   }
-  ctx.drawImage(src, (-W / 2 - pad) * k, (-totalH / 2 - pad) * k, src.width * k, src.height * k);
+  ctx.drawImage(src, x - pad * scale, y - pad * scale, src.width * scale, src.height * scale);
+}
+
+const H_ALIGN = {left: 0, center: 0.5, right: 1};
+const V_ALIGN = {top: 0, middle: 0.5, bottom: 1};
+/**
+ * 畫一個掛點的文字，原點 = 骨頭位置（已套好旋轉 / 縮放 / 偏移，Y 朝下）。
+ * 文字框、錨點、對齊、Overflow 的算法同 Cocos Label：
+ *   NONE   文字框 = 文字大小（寬高設定不作用）
+ *   CLAMP  文字框用設定的寬高，超出裁掉
+ *   SHRINK 文字框用設定的寬高，放不下就整體縮小（不換行）
+ * px = 螢幕 1 像素在目前座標系的長度（畫文字框線用）。
+ */
+function drawAttachmentText(ctx, a, bm, px) {
+  const lines = String(a.text ?? '').split('\n');
+  let lay = null;
+  let k = 1;
+  let widths;
+  let autoLineH;
+  if (bm) {
+    k = (+a.size || bm.size) / bm.size;
+    lay = layoutBmText(bm, a.text ?? '', +a.spacingX || 0);
+    widths = lay.laid.map(l => l.w * k);
+    autoLineH = bm.lineHeight * k;
+  } else {
+    const size = +a.size || 40;
+    ctx.font = `${a.bold ? 'bold ' : ''}${size}px "${a.font || 'sans-serif'}"`;
+    widths = lines.map(s => ctx.measureText(s).width);
+    autoLineH = size;
+  }
+  const W = Math.max(1, ...widths);
+  const lineH = +a.lineHeight > 0 ? +a.lineHeight : autoLineH;
+  const textH = lineH * lines.length;
+  const ov = a.overflow || 'none';
+  const bw = ov !== 'none' && +a.boxW > 0 ? +a.boxW : W;
+  const bh = ov !== 'none' && +a.boxH > 0 ? +a.boxH : textH;
+  const s = ov === 'shrink' ? Math.min(1, bw / W, bh / textH) : 1;
+  const bx = -(+(a.anchorX ?? 0.5)) * bw;
+  const by = -(1 - +(a.anchorY ?? 0.5)) * bh;
+  const hf = H_ALIGN[a.hAlign] ?? 0.5;
+  const vf = V_ALIGN[a.vAlign] ?? 0.5;
+  const ty = by + (bh - textH * s) * vf;
+  ctx.save();
+  if (ov === 'clamp') {
+    ctx.beginPath();
+    ctx.rect(bx, by, bw, bh);
+    ctx.clip();
+  }
+  if (bm) {
+    // 行高跟字型原本的不同時，字放在每一行的正中（跟系統字一致）
+    drawBmText(ctx, bm, lay, lineH / k, hf, a.color, bx + (bw - W * s) * hf, ty + ((lineH - autoLineH) * s) / 2, k * s);
+  } else {
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = +a.stroke || 0;
+    ctx.strokeStyle = a.strokeColor || '#000';
+    ctx.fillStyle = a.color || '#fff';
+    lines.forEach((str, i) => {
+      ctx.save();
+      ctx.translate(bx + (bw - widths[i] * s) * hf, ty + (i + 0.5) * lineH * s);
+      ctx.scale(s, s);
+      if (+a.stroke > 0) ctx.strokeText(str, 0, 0);
+      ctx.fillText(str, 0, 0);
+      ctx.restore();
+    });
+  }
+  ctx.restore();
+  if (a.showBox) {
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = px;
+    ctx.strokeStyle = 'rgba(255,200,0,.9)';
+    ctx.strokeRect(bx, by, bw, bh);
+    // 錨點（= 骨頭位置 + 偏移）
+    ctx.beginPath();
+    ctx.moveTo(-4 * px, 0);
+    ctx.lineTo(4 * px, 0);
+    ctx.moveTo(0, -4 * px);
+    ctx.lineTo(0, 4 * px);
+    ctx.stroke();
+  }
 }
 
 function atlasPageNames(text) {
@@ -1275,23 +1362,7 @@ function drawOverlay() {
     octx.scale(sc * k, sc * k);
     octx.translate(+a.dx || 0, -(+a.dy || 0));
     octx.globalAlpha = clamp01(+(a.opacity ?? 1)) * layerAlpha(l);
-    const bm = isBmFont(a.font) ? bmFonts.get(a.font) : null;
-    if (bm) {
-      drawBmText(octx, bm, a.text, +a.size || bm.size, a.color, +a.spacingX || 0);
-      octx.restore();
-      continue;
-    }
-    octx.font = `${a.bold ? 'bold ' : ''}${+a.size || 40}px "${a.font || 'sans-serif'}"`;
-    octx.textAlign = 'center';
-    octx.textBaseline = 'middle';
-    if (+a.stroke > 0) {
-      octx.lineJoin = 'round';
-      octx.lineWidth = +a.stroke;
-      octx.strokeStyle = a.strokeColor || '#000';
-      octx.strokeText(a.text, 0, 0);
-    }
-    octx.fillStyle = a.color || '#fff';
-    octx.fillText(a.text, 0, 0);
+    drawAttachmentText(octx, a, isBmFont(a.font) ? bmFonts.get(a.font) : null, 1 / Math.max(1e-6, Math.abs(sc * k)));
     octx.restore();
   }
   // 選取圖層的外框
@@ -2094,6 +2165,7 @@ function renderProps() {
 }
 
 function attachmentHtml(a, bones) {
+  const opt = (list, cur) => list.map(([v, t]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${t}</option>`).join('');
   return `<div class="att" data-uid="${a.uid}">
     <div class="row"><label><input type="checkbox" data-ak="visible" ${a.visible ? 'checked' : ''}>顯示</label>
       <select data-ak="bone" class="grow">${bones.map(b => `<option ${b === a.bone ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select>
@@ -2111,6 +2183,16 @@ function attachmentHtml(a, bones) {
       <label>描邊<input type="number" data-ak="stroke" value="${esc(a.stroke)}" step="1" min="0"></label>
       <input type="color" data-ak="strokeColor" value="${esc(a.strokeColor)}"></div>
     <div class="row"><label>偏移X<input type="number" data-ak="dx" value="${esc(a.dx)}"></label><label>偏移Y<input type="number" data-ak="dy" value="${esc(a.dy)}"></label></div>
+    <div class="row"><label title="同 Cocos Label 的 Overflow">Overflow<select data-ak="overflow">${opt([['none', 'NONE'], ['clamp', 'CLAMP'], ['shrink', 'SHRINK']], a.overflow || 'none')}</select></label>
+      <label title="畫出文字框與錨點，方便對位"><input type="checkbox" data-ak="showBox" ${a.showBox ? 'checked' : ''}>顯示文字框</label></div>
+    <div class="row"><label title="同 Cocos UITransform 的 Content Size；Overflow 是 NONE 時不作用，0 = 用文字大小">寬<input type="number" data-ak="boxW" value="${esc(a.boxW ?? 0)}" step="1" min="0"></label>
+      <label>高<input type="number" data-ak="boxH" value="${esc(a.boxH ?? 0)}" step="1" min="0"></label>
+      <label title="同 Cocos Label 的 Line Height；0 = 自動（字級，點陣字用字型的行高）">行高<input type="number" data-ak="lineHeight" value="${esc(a.lineHeight ?? 0)}" step="1" min="0"></label></div>
+    <div class="row"><label title="同 Cocos Label 的 Horizontal Align">橫向<select data-ak="hAlign">${opt([['left', '左'], ['center', '中'], ['right', '右']], a.hAlign || 'center')}</select></label>
+      <label title="同 Cocos Label 的 Vertical Align">直向<select data-ak="vAlign">${opt([['top', '上'], ['middle', '中'], ['bottom', '下']], a.vAlign || 'middle')}</select></label></div>
+    <div class="row"><label title="同 Cocos UITransform 的 Anchor Point：文字框的這個點對到骨頭（0 = 左 / 下，1 = 右 / 上）">錨點X<input type="number" data-ak="anchorX" value="${esc(a.anchorX ?? 0.5)}" step="0.1"></label>
+      <label>錨點Y<input type="number" data-ak="anchorY" value="${esc(a.anchorY ?? 0.5)}" step="0.1"></label></div>
+    <div class="note">NONE：文字框＝文字大小，位數變多時依錨點往外長；CLAMP 超出寬高裁掉；SHRINK 放不下自動縮小（皆同 Cocos）</div>
     <div class="row"><label><input type="checkbox" data-ak="followRot" ${a.followRot ? 'checked' : ''}>跟旋轉</label>
       <label><input type="checkbox" data-ak="followScale" ${a.followScale ? 'checked' : ''}>跟骨頭縮放</label>
       <label>透明<input type="number" data-ak="opacity" value="${esc(a.opacity)}" step="0.1" min="0" max="1"></label></div>
@@ -2451,6 +2533,8 @@ props.addEventListener('click', e => {
           layerId: l.id, bone: S.selectedBone, text: '888', font: S.fonts[0], bold: true,
           size: 48, scale: 1, color: '#ffffff', stroke: 6, strokeColor: '#000000',
           dx: 0, dy: 0, followRot: true, followScale: true, opacity: 1, visible: true,
+          overflow: 'none', boxW: 0, boxH: 0, hAlign: 'center', vAlign: 'middle', lineHeight: 0,
+          anchorX: 0.5, anchorY: 0.5, showBox: false,
         });
         saveAttachments();
         break;

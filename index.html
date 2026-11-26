@@ -87,6 +87,7 @@
     <li><b>跟隨（搭配播放）</b>：在圖層屬性選「跟隨」另一組 Spine，它會每幀對齊對方第 0 軌的動畫名與播放時間（對方播什麼它就播什麼，沒有同名動畫就播空動畫），位置也跟著對方。適合「本體一組、特效 / 數字另一組，兩組動畫名相同、要同步播」的情況，例如特效層 <code>Hero_Fx</code> 跟著本體 <code>Hero</code>。</li>
     <li><b>掛數字</b>：「骨骼 / 掛點」區選骨頭 →「＋ 掛數字」，文字會跟著骨頭位置（可選是否跟旋轉、縮放），等同 Cocos 的 socket 節點。勾「顯示骨骼」後可直接在畫面上點骨頭來選。</li>
     <li><b>定位骨頭</b>：像飛行軌跡、收集拖尾這種「程式在執行期把某根骨頭（例如 <code>End</code>）擺到目標」的動畫，選骨頭 →「📌 定位這根骨頭」，再拖畫面上的粉紅準心或填 X / Y。座標是這組 Spine 節點的本地座標（＝遊戲裡 <code>convertToNodeSpaceAR</code> 的結果），每幀蓋掉動畫的位置，子骨頭和 IK 會跟著重算。設定依骨架名稱記住。</li>
+    <li><b>數字的文字框與對齊</b>：掛點可設 Overflow、寬 / 高、橫向 / 直向對齊、行高、錨點，數值同 Cocos 的 Label 與 UITransform，可以直接照 Inspector 填。<code>NONE</code>：文字框就是文字大小，位數變多時依錨點往外長（錨點 X = 0 往右長、1 往左長）；<code>CLAMP</code>：用設定的寬高，超出裁掉；<code>SHRINK</code>：放不下就自動縮小。勾「顯示文字框」會畫出框線與錨點。</li>
     <li><b>字型</b>：拖 <code>.ttf</code> / <code>.otf</code> / <code>.woff</code>，或 Cocos 點陣字 <code>X.fnt</code> ＋ 它的 PNG（BMFont 文字格式），掛點「字型」就能選（點陣字顯示為 <code>[BMFont] X</code>）。點陣字的字級換算同 Cocos（字級 ÷ 原始字級），顏色是乘色，可調字距（Spacing X）。字型不會記住，重新整理後要再匯入。</li>
     <li><b>淡入 / 淡出</b>：圖層屬性「淡入 / 淡出」設延遲、時長、起始透明度、淡出開始時間與緩動（名稱同 <code>cc.tween</code> easing），等同 Cocos 對 <code>UIOpacity</code> 做 tween，掛數字會一起淡。計時可選「全域」（按「全部從頭」/ R 歸零）或「某組 Spine 目前動畫的時間」（例如背景跟著轉場動畫的時間淡入，轉場換動畫或重播就重來）。逐格、暫停、全域速度都有效。</li>
     <li><b>mix（動畫切換混合）</b>：「動畫」區的「預設 mix」＝ <code>defaultMix</code>；「＋ 動畫配對 mix」指定「從 A 切到 B」的秒數 ＝ <code>sp.Skeleton.setMix('A', 'B', 秒)</code>，按該列的 ▶ 會播一次 A 再接 B 看效果，也可以直接在動畫清單依序點。播放順序每一段的 mix 欄有填就優先（＝ <code>setAnimation</code> 後改 <code>mixDuration</code>）。多軌的 mix 是那一軌進場 / 關掉的漸變秒數。</li>

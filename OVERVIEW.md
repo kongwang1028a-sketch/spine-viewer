@@ -38,7 +38,8 @@
 |---|---|
 | 匯入（檔案 / 資料夾 / 拖放、自動配對 skel/json + atlas + png） | `importFiles`、`filesFromDataTransfer`、`walkHandle`、`walkEntry`、`createSpineLayer`、`createImageLayer` |
 | 二進位版本偵測（讀不了 4.x 時顯示版本） | `detectBinaryVersion` |
-| BMFont | `parseFnt`、`drawBmText`；`.ttf` / `.otf` 用 `loadFont`（FontFace） |
+| BMFont | `parseFnt`、`layoutBmText`、`drawBmText`；`.ttf` / `.otf` 用 `loadFont`（FontFace） |
+| 掛點文字（文字框、錨點、對齊、Overflow，同 Cocos Label） | `drawAttachmentText`（由 `drawOverlay` 呼叫）、面板 `attachmentHtml` |
 | 播放、從頭播 | `playAnim`、`restartLayer`、`restartAll`、`stepFrames`（逐幀前後退） |
 | 播放順序（Start → Loop×N → End） | `seqStart`、`seqNext`、`seqStop`、`onComplete`、錄製 `startRecording` / `recordClick` / `stopRecording`、文字編輯 `parseSeqText` |
 | 跟隨 | `resolveFollows`、`syncFollow`、`followDepth` |
