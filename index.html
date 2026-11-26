@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spine 多組檢視器</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="toolbar">
+  <strong class="brand">Spine 多組檢視器 <small>3.8</small></strong>
+  <label class="btn">匯入檔案<input id="inFiles" type="file" multiple hidden></label>
+  <label class="btn">匯入資料夾<input id="inDir" type="file" webkitdirectory multiple hidden></label>
+  <span class="sep"></span>
+  <button id="btnPlay" class="btn" title="空白鍵">⏸ 暫停</button>
+  <button id="btnRestart" class="btn" title="R：全部從頭（有播放順序的照順序重播）">⟲ 全部從頭</button>
+  <button id="btnStepBack" class="btn" title="←：上一格（1/30 秒）">◀|</button>
+  <button id="btnStepFwd" class="btn" title="→：下一格（1/30 秒）">|▶</button>
+  <label class="field">全域速度
+    <select id="selSpeed">
+      <option>0.1</option><option>0.25</option><option>0.5</option><option selected>1</option><option>1.5</option><option>2</option>
+    </select>
+  </label>
+  <span class="sep"></span>
+  <span class="seg" id="segCompare" title="S：靜態 ↔ 動態切換">
+    <button data-v="both" class="on">全部</button><button data-v="static">靜態</button><button data-v="dynamic">動態</button><button data-v="overlay">疊圖</button><button data-v="blink">閃爍</button>
+  </span>
+  <label class="field" id="fldOverlay">疊圖透明度<input id="rngOverlay" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+  <label class="field" id="fldBlink">閃爍間隔<input id="numBlink" type="number" min="0.1" max="5" step="0.1" value="0.5">秒</label>
+  <span class="sep"></span>
+  <label class="field">背景<input id="clrBg" type="color" value="#2b2b2b"></label>
+  <label class="field"><input id="chkGrid" type="checkbox" checked>格線</label>
+  <label class="field">設計框
+    <select id="selFrame">
+      <option value="">無</option><option value="720x1280">720×1280</option><option value="1280x720">1280×720</option><option value="1080x1920">1080×1920</option><option value="1920x1080">1920×1080</option>
+    </select>
+  </label>
+  <button id="btnCenter" class="btn" title="鏡頭回原點、100%">置中</button>
+  <span class="sep"></span>
+  <button id="btnSaveWs" class="btn" title="把圖層設定、播放順序、掛點匯出成 JSON（不含 Spine 檔本身）">匯出工作區</button>
+  <label class="btn" title="套用工作區 JSON 到同名圖層">匯入工作區<input id="inWs" type="file" accept=".json" hidden></label>
+  <button id="btnHelp" class="btn">說明</button>
+</header>
+
+<main class="main">
+  <aside class="panel left">
+    <h3>圖層 <small>（下面的畫在上面，同 Cocos 節點順序）</small></h3>
+    <div class="row layer-tools">
+      <button id="btnShowAll" class="btn small">全部顯示</button>
+      <button id="btnHideAll" class="btn small">全部關閉</button>
+      <button id="btnShowSel" class="btn small" title="把選取的圖層打開（其他不動；要只看選取的，先按「全部關閉」）" disabled>顯示選取</button>
+      <button id="btnDelSel"class="btn small" title="Delete 鍵；Shift＋點擊選範圍、Ctrl＋點擊加選" disabled>刪除選取</button>
+    </div>
+    <ul id="layerList" class="layers"></ul>
+    <div class="hint" id="layerHint">把 .skel / .json + .atlas + .png 拖進畫面（可一次多組、可整個資料夾）。單獨的 PNG 會變成圖片圖層（用來當靜態 Symbol）。字型檔（.ttf/.otf）或 Cocos 點陣字（.fnt + .png）會加進掛點字型。</div>
+  </aside>
+  <div class="splitter" data-side="left" title="拖曳調整寬度，雙擊還原"></div>
+
+  <section class="stage" id="stage">
+    <canvas id="gl"></canvas>
+    <canvas id="ov"></canvas>
+    <div id="compareBadge" class="badge"></div>
+    <div id="dropMask" class="drop">放開以匯入</div>
+  </section>
+
+  <div class="splitter" data-side="right" title="拖曳調整寬度，雙擊還原"></div>
+  <aside class="panel right" id="props"></aside>
+</main>
+
+<footer class="timeline">
+  <span id="tlName" class="tl-name">—</span>
+  <input id="tlRange" type="range" min="0" max="1" step="0.0001" value="0" disabled>
+  <span id="tlTime" class="tl-time">0.000 / 0.000 s</span>
+  <span class="status" id="status"></span>
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<dialog id="dlgHelp">
+  <h3>使用說明</h3>
+  <ul>
+    <li><b>匯入</b>：拖檔案或資料夾進畫面。同名 <code>X.skel</code>（或 <code>X.json</code>）＋ <code>X.atlas</code> ＋ atlas 裡列的 PNG 會組成一組 Spine；<code>.meta</code> 自動略過。可一次匯入多組，全部同時播放。</li>
+    <li><b>座標</b>：原點在畫面中央、Y 朝上，跟 Cocos 節點座標一樣；X / Y / 縮放 可直接填 Cocos Inspector 的數值。底下狀態列顯示游標座標。</li>
+    <li><b>移動圖層</b>：在畫面上直接點圖層就會選取，拖曳改 X / Y（多選時一起移動，選取的圖層有藍色虛線框）。重疊時優先選已選取的、其次範圍最小的；點不到想要的就先在左邊清單選它，或用 <b>Shift＋拖曳</b>（不管點在哪都拖選取的圖層）。Ctrl＋點 加選 / 取消。</li>
+    <li><b>鏡頭</b>：滾輪縮放；拖空白處、<b>中鍵</b> 或 <b>Alt＋拖曳</b> 平移。</li>
+    <li><b>自動對位</b>：把企劃 / 美術的 Layout 圖（PNG）匯入成圖片圖層，擺成跟設計框對齊（縮放 1，1 px = 1 單位）。選要對的元件 → 屬性「自動對位」→「🎯 對位這個圖層」（多選時可一次對全部），會用元件<b>目前這一格</b>的畫面在 Layout 圖上、目前位置 ±搜尋範圍內找最像的地方，改 X / Y（跟隨中的改偏移）；勾「也找縮放」會在 0.85～1.15 倍之間一起找。結果顯示相似度，低於 0.6 代表可能認錯；按「↶ 還原」回到對位前。小訣竅：先停在跟 Layout 同一格、先大致拖到附近；Layout 有被擋住或元件大多是半透明光暈時比較不準，對完切「疊圖」確認。</li>
+    <li><b>跟隨（搭配播放）</b>：在圖層屬性選「跟隨」另一組 Spine，它會每幀對齊對方第 0 軌的動畫名與播放時間（對方播什麼它就播什麼，沒有同名動畫就播空動畫），位置也跟著對方。適合「本體一組、特效 / 數字另一組，兩組動畫名相同、要同步播」的情況，例如特效層 <code>Hero_Fx</code> 跟著本體 <code>Hero</code>。</li>
+    <li><b>掛數字</b>：「骨骼 / 掛點」區選骨頭 →「＋ 掛數字」，文字會跟著骨頭位置（可選是否跟旋轉、縮放），等同 Cocos 的 socket 節點。勾「顯示骨骼」後可直接在畫面上點骨頭來選。</li>
+    <li><b>定位骨頭</b>：像飛行軌跡、收集拖尾這種「程式在執行期把某根骨頭（例如 <code>End</code>）擺到目標」的動畫，選骨頭 →「📌 定位這根骨頭」，再拖畫面上的粉紅準心或填 X / Y。座標是這組 Spine 節點的本地座標（＝遊戲裡 <code>convertToNodeSpaceAR</code> 的結果），每幀蓋掉動畫的位置，子骨頭和 IK 會跟著重算。設定依骨架名稱記住。</li>
+    <li><b>字型</b>：拖 <code>.ttf</code> / <code>.otf</code> / <code>.woff</code>，或 Cocos 點陣字 <code>X.fnt</code> ＋ 它的 PNG（BMFont 文字格式），掛點「字型」就能選（點陣字顯示為 <code>[BMFont] X</code>）。點陣字的字級換算同 Cocos（字級 ÷ 原始字級），顏色是乘色，可調字距（Spacing X）。字型不會記住，重新整理後要再匯入。</li>
+    <li><b>淡入 / 淡出</b>：圖層屬性「淡入 / 淡出」設延遲、時長、起始透明度、淡出開始時間與緩動（名稱同 <code>cc.tween</code> easing），等同 Cocos 對 <code>UIOpacity</code> 做 tween，掛數字會一起淡。計時可選「全域」（按「全部從頭」/ R 歸零）或「某組 Spine 目前動畫的時間」（例如背景跟著轉場動畫的時間淡入，轉場換動畫或重播就重來）。逐格、暫停、全域速度都有效。</li>
+    <li><b>mix（動畫切換混合）</b>：「動畫」區的「預設 mix」＝ <code>defaultMix</code>；「＋ 動畫配對 mix」指定「從 A 切到 B」的秒數 ＝ <code>sp.Skeleton.setMix('A', 'B', 秒)</code>，按該列的 ▶ 會播一次 A 再接 B 看效果，也可以直接在動畫清單依序點。播放順序每一段的 mix 欄有填就優先（＝ <code>setAnimation</code> 後改 <code>mixDuration</code>）。多軌的 mix 是那一軌進場 / 關掉的漸變秒數。</li>
+    <li><b>多軌播放</b>：Spine 圖層的「多軌播放」→「＋ 加一軌」，選第幾軌、動畫、循環、權重（<code>TrackEntry.alpha</code>）、速度、延遲、疊加（<code>MixBlend.add</code>）。第 0 軌是上面的動畫 / 播放順序，軌號大的蓋在上面，等同 Cocos <code>skeleton.setAnimation(1, 'Blink', true)</code>。適合測「本體 Idle ＋ 表情 / 光效另一軌」這種組合。R 全部從頭、逐格、拖時間軸都會一起動；設定依骨架名稱記住。</li>
+    <li><b>播放順序</b>：按「⏺ 錄製」後依序點動畫（例如 Start → Loop → End），停止錄製時會記下每段播了幾次；也可以手動編輯。次數 0 = 無限循環，直到按「⏭ 下一段」（N 鍵）。設定依骨架名稱自動記在瀏覽器裡。</li>
+    <li><b>靜 / 動態</b>：圖層角色設「靜態」或「動態」，上方切換 全部 / 靜態 / 動態 / 疊圖 / 閃爍（S 鍵在靜態↔動態間切）。靜態可以是匯入的 PNG，或把 Spine 勾「凍結於時間」當靜態張。疊圖時靜態圖層半透明畫在最上面，方便對位置；閃爍適合抓顏色差。</li>
+    <li><b>顏色對不上</b>先查 PMA：Cocos 的 <code>sp.Skeleton.premultipliedAlpha</code> 對應本工具「PMA 混色」，PNG 匯入設定的 <code>premultiplyAlpha</code> 對應「貼圖預乘」，兩邊要一致才會跟遊戲內一樣。</li>
+    <li><b>快捷鍵</b>：空白 播放/暫停、R 全部從頭、← → 逐格、S 靜/動切換、N 下一段、B 顯示骨骼、Delete 刪除選取的圖層。</li>
+    <li><b>圖層多選</b>：Shift＋點擊 選取一段範圍、Ctrl＋點擊 加選 / 取消；選取後可按「刪除選取」或 Delete 一次移除，勾選其中一項的顯示框會整批一起切換。</li>
+    <li>Runtime 是 spine-ts 3.8（Cocos Creator 3.8 內建的 Spine 版本）；4.x 的檔案讀不了，會顯示檔案版本。</li>
+  </ul>
+  <form method="dialog"><button class="btn">關閉</button></form>
+</dialog>
+
+<script src="lib/spine-webgl-3.8.js"></script>
+<script src="spine-viewer.js"></script>
+</body>
+</html>
