@@ -1,5 +1,7 @@
 # Spine 多組檢視器
 
+**線上使用：<https://kongwang1028a-sketch.github.io/spine-viewer/>**
+
 在瀏覽器裡同時播放、對位、比對多組 Spine 動畫的小工具。純前端，匯入的檔案只在你自己的瀏覽器裡處理，不會上傳到任何地方。
 
 Runtime 是 spine-ts 3.8（webgl），對應 Spine 3.8.x 匯出的 `.skel` / `.json`（Cocos Creator 3.8 內建的 Spine 版本）；4.x 的檔案讀不了，會顯示檔案版本。
