@@ -97,6 +97,7 @@
     <li><b>顏色對不上</b>先查 PMA：Cocos 的 <code>sp.Skeleton.premultipliedAlpha</code> 對應本工具「PMA 混色」，PNG 匯入設定的 <code>premultiplyAlpha</code> 對應「貼圖預乘」，兩邊要一致才會跟遊戲內一樣。</li>
     <li><b>快捷鍵</b>：空白 播放/暫停、R 全部從頭、← → 逐格、S 靜/動切換、N 下一段、B 顯示骨骼、Delete 刪除選取的圖層。</li>
     <li><b>圖層多選</b>：Shift＋點擊 選取一段範圍、Ctrl＋點擊 加選 / 取消；選取後可按「刪除選取」或 Delete 一次移除，勾選其中一項的顯示框會整批一起切換。</li>
+    <li><b>Skin</b>：圖層屬性「動畫」區的 Skin 下拉選要用的 Skin（同 <code>sp.Skeleton.setSkin</code>），◀ ▶ 可以一個一個切過去看。骨架有三個以上的 Skin 時會多一個「疊加其他 Skin」，勾選的會疊在主要的 Skin 上（同 runtime 的 <code>new Skin()</code> + <code>addSkin()</code>），給部位拆成好幾個 Skin 的換裝骨架用。選的 Skin 會記住。</li>
     <li><b>圖層排序</b>：在左邊清單直接拖曳圖層到想要的位置（藍線是放下後的位置），拖多選中的一項會整批一起搬；也可以用 ▲ ▼ 一格一格移。清單越下面畫在越上層，順序會記住。</li>
     <li>Runtime 是 spine-ts 3.8（Cocos Creator 3.8 內建的 Spine 版本）；4.x 的檔案讀不了，會顯示檔案版本。</li>
   </ul>

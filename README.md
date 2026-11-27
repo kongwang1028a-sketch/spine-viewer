@@ -10,6 +10,7 @@ Runtime 是 spine-ts 3.8（webgl），對應 Spine 3.8.x 匯出的 `.skel` / `.j
 
 - **一次匯入多組**：檔案、整個資料夾或直接拖放。同名 `.skel|.json` + `.atlas` + atlas 列的 PNG 會自動配對（`.meta` 略過）；單獨的 PNG 會變成圖片圖層。
 - **座標同 Cocos**：原點在畫面中央、Y 朝上，X / Y / 縮放可以直接填 Cocos Inspector 的數值；可在畫面上直接拖圖層。
+- **Skin**：下拉或 ◀ ▶ 切換 Skin（同 `setSkin`），也可以疊加多個 Skin（同 runtime 的 `new Skin()` + `addSkin()`）。
 - **跟隨**：一組 Spine 每幀對齊另一組第 0 軌的動畫名與播放時間，適合「本體一組、特效 / 數字另一組」同步播。
 - **骨頭掛數字**：文字跟著骨頭的位置 / 旋轉 / 縮放（同 Cocos socket），可匯入 `.ttf` / `.otf` 或 BMFont（`.fnt` + `.png`）；可設文字框寬高、錨點、橫向 / 直向對齊、行高與 Overflow（`NONE` / `CLAMP` / `SHRINK`），同 Cocos Label。
 - **定位骨頭**：把某根骨頭固定到指定座標（模擬程式在執行期擺骨頭，例如飛行軌跡的終點），可拖曳或填數值。

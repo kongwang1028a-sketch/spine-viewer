@@ -140,6 +140,9 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .tracks { display: grid; gap: 4px; }
 .att, .trk { border: 1px solid var(--line); border-radius: 4px; padding: 6px; display: grid; gap: 4px; }
 .att input[type=text] { width: 90px; }
+.skinmix > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.skinlist { display: grid; gap: 2px; max-height: 180px; overflow: auto; margin: 4px 0; }
+.skinlist label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .timeline {
   display: flex; align-items: center; gap: 10px; padding: 6px 10px;

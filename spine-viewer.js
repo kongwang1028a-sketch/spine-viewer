@@ -385,7 +385,7 @@ function atlasPageNames(text) {
 
 // ---------- 圖層 ----------
 const PERSIST_KEYS = [
-  'role', 'x', 'y', 'scale', 'flipX', 'alpha', 'pma', 'texPma', 'speed', 'loop', 'skin', 'anim', 'defaultMix',
+  'role', 'x', 'y', 'scale', 'flipX', 'alpha', 'pma', 'texPma', 'speed', 'loop', 'skin', 'skinExtra', 'anim', 'defaultMix',
   'seq', 'seqLoopAll', 'followName', 'followPos', 'followOffX', 'followOffY', 'freeze', 'freezeTime', 'debug',
   'pins', 'tracks', 'mixes',
   'fadeOn', 'fadeClockName', 'fadeFrom', 'fadeInDelay', 'fadeInDur', 'fadeOutOn', 'fadeOutAt', 'fadeOutDur', 'fadeEase',
@@ -397,7 +397,7 @@ function newLayerBase(type, name) {
     x: 0, y: 0, scale: 1, flipX: false, alpha: 1,
     pma: false, texPma: false,
     // spine
-    speed: 1, loop: true, skin: null, anim: null, defaultMix: 0,
+    speed: 1, loop: true, skin: null, skinExtra: [], anim: null, defaultMix: 0,
     followId: null, followName: null, followPos: true, followOffX: 0, followOffY: 0,
     freeze: false, freezeTime: 0, debug: false,
     // 定位骨頭：[{bone, x, y, on}]，x/y = sp.Skeleton 節點座標（同遊戲 convertToNodeSpaceAR 的結果）
@@ -469,6 +469,7 @@ function applySaved(l, saved) {
   l.seq = Array.isArray(l.seq) ? l.seq.map(s => ({anim: s.anim, times: +s.times || 0, mix: s.mix ?? ''})) : [];
   l.tracks = Array.isArray(l.tracks) ? l.tracks.map(sanitizeTrack) : [];
   l.mixes = Array.isArray(l.mixes) ? l.mixes.map(m => ({from: String(m.from || ''), to: String(m.to || ''), dur: Math.max(0, +m.dur || 0)})) : [];
+  l.skinExtra = Array.isArray(l.skinExtra) ? l.skinExtra.map(String) : [];
   l.pins = Array.isArray(l.pins) ? l.pins.map(p => ({bone: String(p.bone), x: +p.x || 0, y: +p.y || 0, on: p.on !== false})) : [];
 }
 
@@ -510,11 +511,28 @@ async function createSpineLayer({name, skelFile, kind, jsonText, atlasText, page
   return l;
 }
 
+/**
+ * 套用圖層的 Skin：l.skin 是主要的那一個（同 sp.Skeleton.setSkin），
+ * l.skinExtra 是疊加上去的其他 Skin（同 runtime 的 new Skin() + addSkin()，後面的蓋前面的）。
+ */
+function applySkin(l) {
+  const d = l.data;
+  if (!l.skin || !d.findSkin(l.skin)) l.skin = d.defaultSkin ? d.defaultSkin.name : d.skins[0] ? d.skins[0].name : null;
+  if (!l.skin) return;
+  const extra = (l.skinExtra || []).filter(n => n !== l.skin && d.findSkin(n));
+  if (!extra.length) l.sk.setSkinByName(l.skin);
+  else {
+    const mix = new spine.Skin('__mix');
+    for (const n of [l.skin, ...extra]) mix.addSkin(d.findSkin(n));
+    l.sk.setSkin(mix);
+  }
+  l.sk.setSlotsToSetupPose();
+}
+
 function setupSkeleton(l, data) {
   l.data = data;
   l.sk = new spine.Skeleton(data);
-  if (l.skin && data.findSkin(l.skin)) l.sk.setSkinByName(l.skin);
-  else l.skin = data.defaultSkin ? data.defaultSkin.name : null;
+  applySkin(l);
   l.sk.setToSetupPose();
   l.sk.updateWorldTransform();
   const asd = new spine.AnimationStateData(data);
@@ -2042,9 +2060,8 @@ function renderProps() {
         <label><input type="checkbox" data-k="loop">循環</label>
         ${numField('速度', 'speed', 0.1)}
       </div>
-      <div class="row">${numField('預設 mix', 'defaultMix', 0.05, '切換動畫時的混合秒數（AnimationStateData.defaultMix）')}
-        ${l.data.skins.length > 1 ? `<span class="k">Skin</span><select data-k="skin">${l.data.skins.map(s => `<option>${esc(s.name)}</option>`).join('')}</select>` : ''}
-      </div>
+      <div class="row">${numField('預設 mix', 'defaultMix', 0.05, '切換動畫時的混合秒數（AnimationStateData.defaultMix）')}</div>
+      ${skinHtml(l)}
       <div class="mixes">${l.mixes
         .map((m, i) => {
           const opts = cur => anims.map(a => `<option value="${esc(a.name)}" ${a.name === cur ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
@@ -2217,6 +2234,30 @@ function renderProps() {
   renderSeqHighlight();
 }
 
+function skinHtml(l) {
+  const names = l.data.skins.map(s => s.name);
+  const many = names.length > 1;
+  const extra = new Set(l.skinExtra || []);
+  let h = `<div class="row"><span class="k" title="同 sp.Skeleton.setSkin">Skin</span>
+    <select data-k="skin" class="grow" ${many ? '' : 'disabled'}>${names.map(n => `<option>${esc(n)}</option>`).join('')}</select>
+    <button class="btn small" data-act="skinPrev" ${many ? '' : 'disabled'} title="上一個 Skin">◀</button>
+    <button class="btn small" data-act="skinNext" ${many ? '' : 'disabled'} title="下一個 Skin">▶</button></div>`;
+  if (!many) h += `<div class="note">這組只有一個 Skin（${esc(names[0] ?? '無')}）</div>`;
+  // 疊加：換裝類的骨架會把部位拆成好幾個 Skin，要一起套才完整
+  // default 不用列：runtime 找不到部位時本來就會退回 default
+  const others = names.filter(n => n !== l.skin && n !== l.data.defaultSkin?.name);
+  if (others.length > 1 || (others.length === 1 && l.skin !== l.data.defaultSkin?.name)) {
+    const on = others.filter(n => extra.has(n)).length;
+    h += `<details class="skinmix" ${on || S.skinMixOpen ? 'open' : ''}><summary>疊加其他 Skin${on ? `（${on}）` : ''}</summary>
+      <div class="skinlist">${others
+        .map(n => `<label title="${esc(n)}"><input type="checkbox" data-skx="${esc(n)}" ${extra.has(n) ? 'checked' : ''}>${esc(n)}</label>`)
+        .join('')}</div>
+      <div class="note">同 runtime 的 <code>new Skin()</code> + <code>addSkin()</code>：先套上面選的 Skin，再依清單順序疊上勾選的，同一個部位後面的蓋前面的。</div>
+    </details>`;
+  }
+  return h;
+}
+
 function attachmentHtml(a, bones) {
   const opt = (list, cur) => list.map(([v, t]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${t}</option>`).join('');
   return `<div class="att" data-uid="${a.uid}">
@@ -2301,6 +2342,19 @@ function onPropInput(e) {
   const l = selLayer();
   if (!l) return;
   const t = e.target;
+  // 疊加 Skin
+  if (t.dataset.skx != null) {
+    if (e.type !== 'change' || l.type !== 'spine') return;
+    const set = new Set(l.skinExtra || []);
+    if (t.checked) set.add(t.dataset.skx);
+    else set.delete(t.dataset.skx);
+    l.skinExtra = l.data.skins.map(s => s.name).filter(n => set.has(n)); // 照骨架裡的順序疊
+    S.skinMixOpen = true;
+    applySkin(l);
+    persistSoon(l);
+    renderProps();
+    return;
+  }
   // 圖層屬性
   if (t.dataset.k) {
     const k = t.dataset.k;
@@ -2332,8 +2386,8 @@ function onPropInput(e) {
       else reuploadTexture(l.tex, v);
     } else if (k === 'skin') {
       l.skin = v;
-      l.sk.setSkinByName(v);
-      l.sk.setSlotsToSetupPose();
+      applySkin(l);
+      if (e.type === 'change') setTimeout(renderProps); // 疊加清單要跟著換（主要的那個不能再疊自己）
     } else if (k === 'defaultMix') {
       l.defaultMix = v;
       rebuildMix(l);
@@ -2490,6 +2544,14 @@ props.addEventListener('click', e => {
       case 'alignUndo':
         undoAlign();
         return;
+      case 'skinPrev':
+      case 'skinNext': {
+        const names = l.data.skins.map(s => s.name);
+        const i = names.indexOf(l.skin);
+        l.skin = names[(i + (act === 'skinNext' ? 1 : -1) + names.length) % names.length];
+        applySkin(l);
+        break;
+      }
       case 'mixAdd': {
         const names = l.data.animations.map(a => a.name);
         const from = l.st.getCurrent(0)?.animation?.name || names[0] || '';
@@ -2838,7 +2900,7 @@ function applyWorkspace(ws) {
       applySaved(l, saved);
       l.followId = null;
       if (l.type === 'spine') {
-        if (l.skin && l.data.findSkin(l.skin)) l.sk.setSkinByName(l.skin);
+        applySkin(l);
         rebuildMix(l);
         if (l.anim) playAnim(l, l.anim);
       }

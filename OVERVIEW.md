@@ -42,6 +42,7 @@
 | 掛點文字（文字框、錨點、對齊、Overflow，同 Cocos Label） | `drawAttachmentText`（由 `drawOverlay` 呼叫）、面板 `attachmentHtml` |
 | 播放、從頭播 | `playAnim`、`restartLayer`、`restartAll`、`stepFrames`（逐幀前後退） |
 | 播放順序（Start → Loop×N → End） | `seqStart`、`seqNext`、`seqStop`、`onComplete`、錄製 `startRecording` / `recordClick` / `stopRecording`、文字編輯 `parseSeqText` |
+| Skin（切換、疊加多個） | `applySkin`、面板 `skinHtml`；圖層欄位 `skin`（主要的）、`skinExtra`（疊加的） |
 | 跟隨 | `resolveFollows`、`syncFollow`、`followDepth` |
 | 多軌播放（第 1 軌以上） | `applyTracks`、`applyTrack`、`clearExtraTrack`、`updateTrackLive`、`shiftExtraTracks`（上限 `MAX_TRACK`） |
 | mix | `rebuildMix`（預設 mix + 配對 mix）；優先序：播放順序那一段的 mix > 配對 mix > 預設 mix |
